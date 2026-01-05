@@ -12,3 +12,4 @@ code structure:
 │   └── timer.cu         # Timing utilities
 
 compilation code: compile files main.cpp, poisson.cu and time.cu "nvcc -arch=sm_89 -rdc=true -x cu -c main.cpp -o main.o"
+execute: "nvcc -arch=sm_89 -rdc=true -lcublas -o run_gpu main.o poisson.o time.o" the "./run_gpu"
