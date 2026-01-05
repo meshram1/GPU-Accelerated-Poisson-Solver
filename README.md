@@ -1,6 +1,4 @@
 # GPU-Accelerated-Poisson-Solver
-GPU-Accelerated Poisson Solver (CFD)
-Overview
 
 This project implements a GPU-accelerated solver for the 2D Poisson equation, a core subproblem in many Computational Fluid Dynamics (CFD) applications (e.g., pressure projection for incompressible flow).
 
