@@ -1,0 +1,14 @@
+Read me file to compile:
+
+code structure: 
+├── include/
+│   ├── tensor.hpp        # Host/device tensor abstraction
+│   ├── poisson.hpp      # Solver interface
+│   └── cuda_utils.hpp   # CUDA helper utilities
+├── src/
+│   ├── main.cpp         # Program entry point
+│   ├── poisson.cu       # CUDA kernels and solver implementation
+│   ├── cublas_layer.cpp # cuBLAS wrappers
+│   └── timer.cu         # Timing utilities
+
+compilation code: compile files main.cpp, poisson.cu and time.cu "nvcc -arch=sm_89 -rdc=true -x cu -c main.cpp -o main.o"
