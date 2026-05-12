@@ -1,0 +1,4 @@
+*.o
+run_gpu
+data.dat
+bench/csrc/bench
