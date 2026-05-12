@@ -1,20 +1,77 @@
-# GPU-Accelerated-Poisson-Solver
+# GPU-Accelerated Poisson Solver
 
-This project implements a GPU-accelerated solver for the 2D Poisson equation, a core subproblem in many Computational Fluid Dynamics (CFD) applications (e.g., pressure projection for incompressible flow).
+## structure
 
-The solver is written in C++ with CUDA and supports both CPU and GPU execution paths, enabling direct performance comparison. A custom tensor abstraction is used to manage host and device memory explicitly.
+    .
+    ├── include/
+    │   ├── tensor.hpp
+    │   ├── poisson.cuh
+    │   └── cuda_utlis.cpp
+    ├── src/
+    │   ├── main.cpp
+    │   ├── poisson.cu
+    │   ├── time.cu
+    │   ├── cublas_layer.cpp
+    │   └── cudann_conv.cpp
+    ├── bench/
+    │   └── csrc/
+    │       ├── Makefile
+    │       └── bench.c
+    ├── third_party/
+    │   └── cupoisson/        (submodule)
+    └── README.md
 
-Features
-Jacobi and Conjugate Gradient (CG) solvers for the Poisson equation
-Matrix-free implementation using a 5-point finite-difference stencil
-CUDA kernels for stencil application and residual computation
-cuBLAS integration for vector operations (norms, dot products, axpy)
-Ping-pong buffering to avoid unnecessary memory copies
-CPU vs GPU benchmarking with measured speedups
-Modular design suitable for extension to more advanced solvers
-Performance
+## clone
 
-On tested grid sizes, the GPU implementation achieved:
-~6× speedup per iteration compared to the CPU version
-Up to ~13× end-to-end speedup for full solver runtime
-Exact performance depends on grid resolution, convergence tolerance, and hardware.
+    git clone --recurse-submodules https://github.com/meshram1/GPU-Accelerated-Poisson-Solver.git
+    cd GPU-Accelerated-Poisson-Solver
+
+If you cloned without `--recurse-submodules`:
+
+    git submodule update --init
+
+Check your GPU arch:
+
+    nvidia-smi --query-gpu=compute_cap --format=csv,noheader
+
+Use that value as `sm_XX` below (e.g. `7.5` → `sm_75`, `8.9` → `sm_89`).
+
+## build cupoisson (double precision)
+
+1. In `third_party/cupoisson/csrc/precision.h`, uncomment
+   `#define DOUBLE_PRECISION`.
+
+2. In `third_party/cupoisson/csrc/Makefile`, uncomment the
+   `NVCCPARMS += -arch sm_13` line and replace `sm_13` with your arch.
+
+3. In `third_party/cupoisson/csrc/poisson.cu`, comment out the
+   `cufftSetCompatibilityMode(...)` call (removed in CUDA 10+).
+
+Then:
+
+    cd third_party/cupoisson/csrc
+    make clean
+    make
+    cd ../../..
+
+## build our solver
+
+    nvcc -arch=sm_89 -rdc=true -x cu -c src/main.cpp   -o src/main.o
+    nvcc -arch=sm_89 -rdc=true -x cu -c src/poisson.cu -o src/poisson.o
+    nvcc -arch=sm_89 -rdc=true -x cu -c src/time.cu    -o src/time.o
+    nvcc -arch=sm_89 -rdc=true -lcublas -o run_gpu src/main.o src/poisson.o src/time.o
+
+## run
+
+ours:
+
+    ./run_gpu
+
+cupoisson:
+
+    time ./third_party/cupoisson/csrc/cupoisson
+
+## bench (optional)
+
+    cd bench/csrc && make && cd ../..
+    ./bench/csrc/bench ./run_gpu ./third_party/cupoisson/csrc/cupoisson 5
