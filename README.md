@@ -29,12 +29,7 @@
 If you cloned without `--recurse-submodules`:
 
     git submodule update --init
-
-Check your GPU arch:
-
-    nvidia-smi --query-gpu=compute_cap --format=csv,noheader
-
-Use that value as `sm_XX` below (e.g. `7.5` → `sm_75`, `8.9` → `sm_89`).
+Use the GPU arch as `sm_XX` below
 
 ## build cupoisson (double precision)
 
@@ -54,7 +49,7 @@ Then:
     make
     cd ../../..
 
-## build our solver
+## build original solver
 
     nvcc -arch=sm_89 -rdc=true -x cu -c src/main.cpp   -o src/main.o
     nvcc -arch=sm_89 -rdc=true -x cu -c src/poisson.cu -o src/poisson.o
@@ -63,7 +58,7 @@ Then:
 
 ## run
 
-ours:
+original:
 
     ./run_gpu
 
@@ -71,7 +66,7 @@ cupoisson:
 
     time ./third_party/cupoisson/csrc/cupoisson
 
-## bench (optional)
+## bench
 
     cd bench/csrc && make && cd ../..
     ./bench/csrc/bench ./run_gpu ./third_party/cupoisson/csrc/cupoisson 5
