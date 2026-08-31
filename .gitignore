@@ -2,3 +2,4 @@
 run_gpu
 data.dat
 bench/csrc/bench
+.claude/
