@@ -28,7 +28,20 @@ __global__ void solve_gpu(const double* A, double* A_new, const double* f, int n
         A_new[idx] = 0.25 * (A[idx + nx] + A[idx - nx] + A[idx + 1] + A[idx - 1] - dx2 * f[idx]);
   }
 }
-
+__global__ void residual_gpu(const double* A, const double* f, double* r,
+                             int nx, int ny, double dx)
+{
+    const double inv_dx2 = 1.0 / (dx * dx);
+    int column = blockIdx.x * blockDim.x + threadIdx.x + 1;
+    int row    = blockIdx.y * blockDim.y + threadIdx.y + 1;
+    if (column <= nx - 2 && row <= ny - 2) {
+        int idx = column + row * nx;
+        double lap = (A[idx + nx] + A[idx - nx]
+                    + A[idx + 1]  + A[idx - 1]
+                    - 4.0 * A[idx]) * inv_dx2;
+        r[idx] = f[idx] - lap;
+    }
+}
 __global__ void bc_gpu(double* A, int nx, int ny){
     int idx = blockIdx.x * blockDim.x + threadIdx.x; // 0, 1, 2, ..., nx-1, BC(0) and BC(nx-1);
     if (idx<nx) {
@@ -92,4 +105,22 @@ void exact_solution_gpu(Tensor2D<double>& A, double dx, double dy){
 			A(i, j) = std::sin(pi*x) * std::sin(pi*y);
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// A*u for the SPD system. Indexing is deliberately identical to solve_gpu and
+// residual_gpu: idx +/- 1 steps in i, idx +/- nx steps in j, and the +1 offset
+// on the thread index restricts us to interior points. If these three kernels
+// ever disagree about the stencil, CG converges to the wrong answer silently.
+// ---------------------------------------------------------------------------
+__global__ void apply_A_gpu(const double* u, double* Au, int nx, int ny)
+{
+    int column = blockIdx.x * blockDim.x + threadIdx.x + 1;
+    int row    = blockIdx.y * blockDim.y + threadIdx.y + 1;
+    if (column <= nx - 2 && row <= ny - 2) {
+        int idx = column + row * nx;
+        Au[idx] = 4.0 * u[idx]
+                - u[idx + 1]  - u[idx - 1]
+                - u[idx + nx] - u[idx - nx];
+    }
 }
