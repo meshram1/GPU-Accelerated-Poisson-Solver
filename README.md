@@ -10,17 +10,53 @@ with identical iteration counts.
 
 ## Results
 
-2048² grid, random right-hand side, tol 1e-4 relative residual, FP64 unless
-noted. Every row runs the same CG algorithm; the FP64 rows converge in the
-same 3362 iterations, so no row wins by solving an easier problem.
+The results come from three separate comparisons, and each one answers a
+different question. They measure different things, so they don't combine into
+a single number.
 
-| Config | iters | ms | ms/iter | vs base |
-|---|---:|---:|---:|---:|
-| cuSPARSE CSR + cuBLAS, fp64 | 3362 | 15296.7 | 4.550 | 1.00× |
-| matrix-free + cuBLAS, fp64 | 3362 | 10264.9 | 3.053 | 1.49× |
-| matrix-free + fused, fp64 | 3370 | 7245.2 | 2.150 | **2.11×** |
-| matrix-free + cuBLAS, mixed | 6626 | 9154.0 | 1.382 | 1.67× |
-| matrix-free + fused, mixed | 6700 | 7223.4 | 1.078 | 2.12× |
+    Original project:  Jacobi on GPU
+            │
+            │  change algorithm      →  99.6% fewer iterations       (comparison 2)
+            ▼
+    CG on GPU  ─────────────────────────  7.12× vs CG on CPU          (comparison 3)
+            │
+            │  vs NVIDIA's cuSPARSE doing the same CG:
+            │     matrix-free  1.49×  ┐
+            │     fusion       1.42×  ├─ chained → 2.11× total        (comparison 1)
+            │     mixed        1.00×  ┘
+            ▼
+    Final solver
+
+| # | Question | Baseline | Result |
+|---|---|---|---|
+| 1 | Is this implementation faster than NVIDIA's library? | cuSPARSE running the same CG algorithm | **2.11×** at 2048² |
+| 2 | Is the algorithm right? | Jacobi on the identical problem | **99.6% fewer iterations** (143,600 → 526) at 300² |
+| 3 | Is the GPU worth it? | the same CG on one CPU thread | **7.12×** at 2048² |
+
+In comparison 1, each step's speedup is **chained**: it is measured against the
+step before it, not against cuSPARSE. The steps multiply to give the total:
+1.49 × 1.42 = 2.11× for the FP64 headline, and mixed precision contributes a
+further 1.00×. Percentages combine the same way. A 33% time cut followed by a
+29% cut is a 53% total reduction, not 62%.
+
+### The ladder (comparison 1)
+
+2048² grid, random right-hand side, tol 1e-4 relative residual, FP64 unless
+noted. Every row runs the same CG algorithm, and the FP64 rows converge in the
+same 3362 iterations, so no row gets its speedup from solving an easier
+problem. **vs cuSPARSE** compares each row with the first row. **vs previous
+step** is the chained speedup.
+
+| Config | iters | ms | ms/iter | vs cuSPARSE | vs previous step |
+|---|---:|---:|---:|---:|---:|
+| cuSPARSE CSR + cuBLAS, fp64 | 3362 | 15296.7 | 4.550 | 1.00× | — |
+| matrix-free + cuBLAS, fp64 | 3362 | 10264.9 | 3.053 | 1.49× | 1.49× |
+| matrix-free + fused, fp64 | 3370 | 7245.2 | 2.150 | **2.11×** | 1.42× |
+| matrix-free + fused, mixed | 6700 | 7223.4 | 1.078 | 2.12× | 1.00× |
+| matrix-free + cuBLAS, mixed | 6626 | 9154.0 | 1.382 | 1.67× | 1.12× vs row 2 |
+
+The last row is a side branch rather than part of the chain: it applies mixed
+precision without fusion.
 
 cuSPARSE additionally pays 394.7 ms once to build and upload a 268 MB CSR
 matrix — 20,938,768 nonzeros storing five distinct values. Matrix-free stores
@@ -41,10 +77,13 @@ nothing.
   tolerance — though mixed converges to 3.8e-07 where FP64 stops at 9.5e-05,
   roughly 250× tighter for the same wall time.
 
-**Algorithm beats kernel tuning.** Jacobi needed 166,600 iterations at 300² to
-reach the same tolerance; CG needs O(N) where Jacobi needs O(N²). At 2048²
-that extrapolates to ~7.8 million Jacobi sweeps (~2.7 hours) against CG's
-measured 3362 (7.2 s). Every kernel optimisation here together is worth 2.1×.
+**Algorithm beats kernel tuning.** On the identical 300² problem (same random
+right-hand side, same tolerance), Jacobi needed 143,600 iterations and CG
+needed 526, which is 99.6% fewer. Jacobi needs O(N²) iterations while CG needs
+O(N), so the gap widens with grid size. At 2048², Jacobi would need an
+estimated ~7.8 million sweeps (~2.7 hours), extrapolated rather than run, against
+CG's measured 3362 (7.2 s). All the kernel optimisations together are worth
+2.1×.
 
 **An FFT solver is 229× faster.** `cuPoisson` solves the same grid directly in
 31.6 ms (FP64), exactly rather than to 1e-4. For a rectangle with uniform
